@@ -18,7 +18,7 @@ class FileStorageServerApplicationTests {
 	@Test
 	void contextLoads() {
 		try {
-			log.info(1 / 0);
+			log.info(""+1 / 0);
 			String aaa=  "0";
 			aaa.substring(10,12);
 		}catch (ArithmeticException e){
@@ -63,6 +63,5 @@ class FileStorageServerApplicationTests {
 		boolean isValid = str.matches("\\S*[\\d]+[a-zA-Z]+\\S*") && str.length()>=8;
 		return isValid;
 	}
-
 
 }

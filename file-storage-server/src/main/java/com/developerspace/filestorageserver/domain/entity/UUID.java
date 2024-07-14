@@ -1,5 +1,7 @@
 package com.developerspace.filestorageserver.domain.entity;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.LinkedHashSet;
@@ -9,6 +11,7 @@ import java.util.Set;
  * @Author wangz
  * @Date 2021-04-06 0:13
  */
+@Slf4j
 public class UUID {
     private static long lastId = 0;
     private static Object locked = new Object();
@@ -33,11 +36,11 @@ public class UUID {
         for(int i=0;i<threads.length;i++){
             threads[i] = new Thread(()->{
                 for(int j=0;j<10;j++){
-                    log.info(UUID.getId());
+                    log.info("id:{}",UUID.getId());
                 }
             });
             threads[i].start();
         }
-        log.info(set.size());
+        log.info("size:{}",set.size());
     }
 }
