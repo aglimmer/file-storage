@@ -1,0 +1,8 @@
+运行方法：
+1安装nodejs之后，确保npm命令可用，然后执行
+npm install -g http-server
+2.启动http-server
+cd html
+http-server -p 7000
+http://192.168.139.1:7000/
+

@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    </meta>
+    <title>axios实现文件上传下载</title>
+    <style>
+        input {
+            width: 360px;
+            height: 32px;
+        }
+    </style>
+</head>
+
+<body>
+    <div>
+        <div>
+            <div>
+                <label>选择文件</label>
+                <input type="file" multiple id="fileInput"></input>
+            </div>
+            <div>
+                <label>上传地址：</label>
+                <input type="text" id="uploadUrl" value="http://127.0.0.1:7999/file/upload"></input>
+            </div>
+            <button onclick="uploadFileByAxios()">axios上传</button>
+        </div>
+        <hr>
+        <div>
+            <div>
+                <label>下载地址：</label>
+                <input type="text" id="downloadUrl" value="http://127.0.0.1:7999/file/download/filename"></input>
+            </div>
+            <button onclick="downloadFileByAxios()">axios下载</button>
+            <!-- 隐藏一个a标签，当点击按钮时触发这个标签点击事件可以实现下载-->
+            <a style="display: none;" id="link"
+                href="http://127.0.0.1:7999/file/outlink/download?url=http://127.0.0.1:7999/file/24070701440188300.png">
+                链接点击下载
+            </a>
+            <button onclick="downloadLink()">按钮触发下载</button>
+            <button onclick="readFileContentByAxios()">读取文件文件流内容</button>
+        </div>
+        <hr>
+        <div>
+            <label>执行结果：</label>
+            <textarea id="result" rows="5" cols="60"></textarea>
+        </div>
+        <hr>
+        <div>
+            <label>显示的图片地址：</label>
+            <input type="text" onchange="onChangeImageSrc()" id="imageURL"></input>
+            <img id="imageView" src="" alt="暂无图片"></img>
+        </div>
+
+    </div>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script>
+
+        // 添加请求拦截器
+        axios.interceptors.request.use(config => {
+            // 在请求发送之前做些什么
+            console.log('Request:', config);
+            return config;
+        }, error => {
+            // 对请求错误做些什么
+            return Promise.reject(error);
+        });
+
+        // 添加响应拦截器
+        axios.interceptors.response.use(response => {
+            // 对响应数据做点什么
+            console.log('Response:', response);
+            return response;
+        }, error => {
+            // 对响应错误做点什么
+            return Promise.reject(error);
+        });
+
+        // 设置隐藏表单下载链接，执行点击访问
+        function downloadLink() {
+            let link = document.getElementById("link");
+            // link.href = "http://192.168.0.113:7999/file/download/24070718584366000.png";
+            link.href = document.getElementById("downloadUrl").value;
+            link.click();
+        }
+        function onChangeImageSrc() {
+            let imageURL = document.getElementById("imageURL");
+            console.log("imageURL:", imageURL.value);
+            let imageView = document.getElementById("imageView");
+            imageView.src = imageURL.value;
+        }
+
+        function showInfo(msg) {
+            document.getElementById("result").innerText = msg;
+        }
+
+        function getFileName(str) {
+            let regex = /filename="?([^"]+)"?/;
+            let matches = regex.exec(str);
+            let filename = "";
+            if (matches != null && matches.length === 2) {
+                filename = matches[1];
+                // 将字符串 filename 中的所有加号 (+) 替换为空格 ( )
+                // 种替换操作在处理 URL 编码的字符串时很常见。在 URL 中，空格通常被编码为加号 (+) 或 %20
+                // 当从 URL 中提取参数并需要将加号恢复为空格时，可以使用这种替换操作
+                filename = filename.replace(/\+/g, " ");
+                filename = decodeURI(filename);
+            }
+            // console.log(filename);
+            return filename;
+        }
+
+        // 处理axios下载的响应文件
+        const handleAxiosDownloadResponse = async (data, headers) => {
+            const contentType = headers['content-type'];
+            // 后端返回的不是文件而是json对象，判断为异常
+            if (contentType && contentType.startsWith("application/json")) {
+                // data.text()返回一个Promise对象，因此要使用await，此时方法使用使用async关键字标识为异步方法
+                let text = await data.text();
+                console.log("text:", text);
+                const jsonObj = JSON.parse(text);
+                if (jsonObj.code === 1) {
+                    console.log("请求异常：", text);
+                }
+                showInfo(text);
+                return;
+            }
+            const blob = new Blob([data], { type: headers['content-type'] });
+            // 创建一个指向 Blob 对象的 URL
+            const url = window.URL.createObjectURL(blob);
+            // 创建一个 <a> 元素，并设置其 href 属性指向 Blob URL
+            const a = document.createElement('a');
+            a.href = url;
+            // 从响应头或其他方式获取文件名
+            const contentDisposition = headers['content-disposition'];
+            console.log("content-disposition:", contentDisposition)
+            let fileName = '';
+            if (contentDisposition) {
+                const fileNameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
+                if (fileNameMatch.length === 2) {
+                    fileName = fileNameMatch[1];
+                }
+                fileName = fileName.replace(/\+/g, ' ');
+                fileName = decodeURI(fileName);
+                // console.log("fileName:",fileName);
+            }
+            a.download = fileName; // 设置下载文件名
+            // 将 <a> 元素添加到 DOM 并触发点击事件
+            document.body.appendChild(a);
+            a.click();
+            // 移除 <a> 元素并释放 Blob URL
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }
+
+        const downloadFileByAxios = () => {
+            // 使用 Axios 发起 GET 请求
+            // let url = "http://192.168.95.59:7999/download/file/xxx";
+            let url = document.getElementById("downloadUrl").value;
+            let httpHeaders = {};
+            // httpHeaders = { "Custom-Action": "RQ-download" };
+            axios.get(url, { responseType: 'blob', headers: httpHeaders })
+                .then(response => {
+                    // 请求成功处理
+                    console.log("收到下载数据:", response);
+                    // let res = response.data;
+                    handleAxiosDownloadResponse(response.data, response.headers);
+                })
+                .catch(error => {
+                    // 请求失败处理
+                    console.error('Error fetching posts:', error);
+                });
+        }
+
+        function readTextByBlob(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    try {
+                        // 解析为json
+                       // const json = JSON.parse(reader.result);
+                      //  resolve(json);
+                      resolve(reader.result);
+                    } catch (error) {
+                        reject(error);
+                    }
+                };
+                reader.onerror = reject;
+                reader.readAsText(blob);
+            });
+        }
+
+        // async function downloadAndReadJsonFile(url) {
+        //     try {
+        //         const blob = await downloadFile(url);
+        //         const json = await readJsonBlob(blob);
+        //         console.log('JSON content:', json);
+        //         return json;
+        //     } catch (error) {
+        //         console.error('Error reading the JSON file', error);
+        //         throw error;
+        //     }
+        // }
+
+
+
+        const readFileContentByAxios2 = () => {
+            // 使用 Axios 发起 GET 请求
+            // let url = "http://192.168.95.59:7999/download/file/xxx";
+            let url = document.getElementById("downloadUrl").value;
+            let httpHeaders = {};
+            // httpHeaders = { "Custom-Action": "RQ-download" };
+            // responseType: arraybuffer
+            
+            axios.get(url, { responseType: 'blob', headers: httpHeaders })
+                .then(async (response) => {
+                    // 请求成功处理
+                    console.log("收到数据:", response);
+                    // let res = response.data;
+                    // const text = new TextDecoder('utf-8').decode(new Uint8Array(response.data));
+                    // showInfo(text);
+                    let content = await readTextByBlob(response.data);
+                    showInfo(content);
+                })
+                .catch(error => {
+                    // 请求失败处理
+                    console.error('Error fetching posts:', error);
+                });
+        }
+
+
+        const readFileContentByAxios = () => {
+            // 使用 Axios 发起 GET 请求
+            // let url = "http://192.168.95.59:7999/download/file/xxx";
+            let url = document.getElementById("downloadUrl").value;
+            let httpHeaders = {};
+            // httpHeaders = { "Custom-Action": "RQ-download" };
+            // responseType: arraybuffer
+            axios.get(url, { responseType: 'arraybuffer', headers: httpHeaders })
+                .then(async (response) => {
+                    // 请求成功处理
+                    console.log("收到数据:", response);
+                    // let res = response.data;
+                    const text = new TextDecoder('utf-8').decode(new Uint8Array(response.data));
+                    showInfo(text);
+                })
+                .catch(error => {
+                    // 请求失败处理
+                    console.error('Error fetching posts:', error);
+                });
+        }
+
+        function uploadFileByAxios() {
+            // 如果 input上传使用了form表单
+            // const form = document.getElementById('uploadForm');
+            // const formData = new FormData(form);
+            const files = document.getElementById('fileInput').files;
+            const formData = new FormData();
+            for (let i = 0; i < files.length; i++) {
+                formData.append('files', files[i]);
+            }
+            // let uploadUrl = "http://127.0.0.1:7999/file/upload";
+            let uploadUrl = document.getElementById("uploadUrl").value;
+  
+            let headers = {};
+            // headers["Content-Type"] = "multipart/form-data";
+            // 传入的是表单对象，默认content-type就是 mutipart
+            axios.post(uploadUrl, formData,headers)
+                .then(response => {
+                    console.log('Files uploaded successfully:', response.data);
+                    showInfo(JSON.stringify(response.data));
+                })
+                .catch(error => {
+                    console.error('Error uploading files:', error);
+                    showInfo(JSON.stringify(error));
+                });
+        }
+    </script>
+</body>
+
+</html>

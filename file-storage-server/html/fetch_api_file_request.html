@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    </meta>
+    <title>Fetch API 文件上传下载</title>
+    <style>
+        input {
+            width: 500px;
+            height: 32px;
+        }
+    </style>
+</head>
+
+<body>
+    <div>
+        <div>
+            <div>
+                <label>选择文件</label>
+                <input type="file" multiple id="fileInput"></input>
+            </div>
+            <div>
+                <div>
+                    <label>上传地址：</label>
+                    <input type="text" id="uploadUrl" value="http://127.0.0.1:7999/file/upload"></input>
+                </div>
+                <button onclick="uploadFilesByFetch()">fetch上传</button>
+            </div>
+        </div>
+        <div>
+            <div>
+                <label>下载地址：</label>
+                <input type="text" id="downloadUrl" value="http://127.0.0.1:7999/file/download/filename">
+                </input>
+            </div>
+            <button onclick="downloadFileByFetch()">fetch下载</button>
+
+        </div>
+        <div>
+            <label>执行结果：</label>
+            <textarea id="result" rows="5" cols="60"></textarea>
+        </div>
+        <div>
+            <label>显示的图片地址：</label>
+            <input type="text" onchange="setImageURL()" id="imageURL"></input>
+            <img id="imageView" src="" alt="暂无图片"></img>
+        </div>
+
+    </div>
+    <script>
+
+
+
+        function setImageURL() {
+            let imageURL = document.getElementById("imageURL");
+            console.log("imageURL:", imageURL.value);
+            let imageView = document.getElementById("imageView");
+            imageView.src = imageURL.value;
+        }
+        function showInfo(msg) {
+            document.getElementById("result").innerText = msg;
+        }
+        function uploadFilesByFetch() {
+            let files = document.getElementById('fileInput').files;
+            let formData = new FormData();
+
+            for (let i = 0; i < files.length; i++) {
+                formData.append('files', files[i]);
+            }
+            let uploadUrl = document.getElementById("uploadUrl").value;
+
+            fetch(uploadUrl, {
+                method: 'POST',
+                body: formData
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok ' + response.statusText);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Files uploaded successfully:', data);
+                    showInfo(JSON.stringify(data));
+                })
+                .catch(error => {
+                    console.error('Error uploading files:', error);
+                });
+        }
+        function downloadFileByFetch() {
+            // const url = 'http://127.0.0.1:7999/file/upload'; // 文件的URL
+            let url = document.getElementById("downloadUrl").value;
+            fetch(url)
+                .then(async (response) => {
+                    console.log("response:", response);
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok ' + response.statusText);
+                    }
+                    const contentType = response.headers.get('Content-Type');
+                    // 后端抛出异常时，返回json数据
+                    if(contentType && contentType.startsWith("application/json")){
+                        const jsonResponse = await response.json();
+                        if (jsonResponse.code === 1) {
+                            // 后端返回了统一错误响应
+                            console.error('Request failed with message:', jsonResponse.msg);
+                            showInfo(JSON.stringify(jsonResponse));
+                            return;
+                        }
+                    }
+                    console.log("contentType:",contentType);
+                    const disposition = response.headers.get('Content-Disposition');
+                    console.log("disposition:", disposition);
+                    let fileName = "unknown.download";
+                    if (disposition !== null) {
+                        const fileNameMatch = disposition.match(/filename="?([^"]+)"?/);
+                        if (fileNameMatch.length === 2) {
+                            fileName = fileNameMatch[1];
+                        }
+                        fileName = fileName.replace(/\+/g, ' ');
+                        fileName = decodeURI(fileName);
+                    }
+                    response.blob().then(blob => {
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.style.display = 'none';
+                        a.href = url;
+                        a.download = fileName; // 设置下载文件名
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url); // 释放URL对象
+                    });
+
+                })
+                .catch(error => {
+                    console.error('error:', error);
+                });
+        }
+    </script>
+</body>
+
+</html>
